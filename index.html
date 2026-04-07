@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#FF6B35">
+<title>门店巡检</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --primary: #FF6B35;
+    --primary-dark: #E55A25;
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --text: #1A1A1A;
+    --text-secondary: #666;
+    --border: #E0E0E0;
+    --danger: #E53935;
+    --success: #43A047;
+    --radius: 12px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ===== 页面切换 ===== */
+  .page { display: none; min-height: 100vh; flex-direction: column; }
+  .page.active { display: flex; }
+
+  /* ===== 顶部导航 ===== */
+  .topbar {
+    background: var(--primary);
+    color: white;
+    padding: 12px 16px;
+    padding-top: calc(12px + env(safe-area-inset-top));
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(255,107,53,0.3);
+  }
+  .topbar h1 { font-size: 18px; font-weight: 600; flex: 1; }
+  .topbar .back-btn { background: none; border: none; color: white; font-size: 22px; cursor: pointer; padding: 4px; line-height: 1; }
+  .topbar .action-btn { background: rgba(255,255,255,0.2); border: none; color: white; font-size: 13px; padding: 6px 12px; border-radius: 20px; cursor: pointer; white-space: nowrap; }
+  .topbar .action-btn:active { background: rgba(255,255,255,0.35); }
+
+  /* ===== 首页 ===== */
+  .home-content { flex: 1; padding: 16px; overflow-y: auto; }
+  .new-store-btn {
+    width: 100%;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    padding: 18px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 16px rgba(255,107,53,0.35);
+    margin-bottom: 20px;
+  }
+  .new-store-btn:active { transform: scale(0.98); }
+  .section-title { font-size: 13px; color: var(--text-secondary); font-weight: 500; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .store-list { display: flex; flex-direction: column; gap: 10px; }
+  .store-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .store-card:active { transform: scale(0.98); }
+  .store-card-icon { width: 44px; height: 44px; border-radius: 10px; background: #FFF0EB; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .store-card-info { flex: 1; min-width: 0; }
+  .store-card-name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .store-card-meta { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+  .store-card-count { font-size: 12px; color: var(--primary); font-weight: 600; background: #FFF0EB; padding: 3px 8px; border-radius: 10px; flex-shrink: 0; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+  .empty-state .emoji { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 15px; }
+
+  /* ===== 新建门店弹窗 ===== */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: flex-end; }
+  .modal-overlay.show { display: flex; }
+  .modal-sheet {
+    background: var(--card);
+    border-radius: 20px 20px 0 0;
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+    width: 100%;
+    animation: slideUp 0.25s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 16px; text-align: center; }
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; display: block; }
+  .form-input {
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+    background: var(--bg);
+  }
+  .form-input:focus { border-color: var(--primary); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .btn { flex: 1; padding: 14px; border-radius: 10px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; }
+  .btn-cancel { background: var(--bg); color: var(--text-secondary); }
+  .btn-confirm { background: var(--primary); color: white; }
+  .btn:active { opacity: 0.8; }
+
+  /* ===== 巡检页面 ===== */
+  .inspect-content { flex: 1; overflow-y: auto; padding-bottom: 100px; }
+  .store-info-bar { background: white; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .store-info-bar .store-name { font-size: 16px; font-weight: 600; }
+  .store-info-bar .store-date { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* 照片列表 */
+  .photo-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .photo-item {
+    background: var(--card);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .photo-item-header { display: flex; align-items: center; padding: 10px 12px; gap: 8px; border-bottom: 1px solid var(--border); }
+  .photo-num { width: 24px; height: 24px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .photo-item-header span { flex: 1; font-size: 13px; color: var(--text-secondary); }
+  .photo-delete-btn { background: none; border: none; color: var(--danger); font-size: 18px; cursor: pointer; padding: 2px 6px; }
+  .photo-img-wrap { position: relative; background: #000; }
+  .photo-img { width: 100%; max-height: 280px; object-fit: contain; display: block; }
+  .photo-desc-wrap { padding: 10px 12px; }
+  .photo-desc {
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 15px;
+    min-height: 72px;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+    line-height: 1.5;
+    transition: border-color 0.2s;
+    background: var(--bg);
+  }
+  .photo-desc:focus { border-color: var(--primary); }
+  .photo-desc::placeholder { color: #BDBDBD; }
+
+  /* 底部拍照按钮 */
+  .bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid var(--border);
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+  }
+  .camera-btn {
+    flex: 1;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .camera-btn:active { background: var(--primary-dark); }
+  .album-btn {
+    background: var(--bg);
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .album-btn:active { background: var(--border); }
+  #cameraInput, #albumInput { display: none; }
+
+  /* ===== 导出/发布页面 ===== */
+  .export-content { flex: 1; padding: 16px; overflow-y: auto; }
+  .export-preview {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .preview-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .preview-meta { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+  .preview-thumb-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preview-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; }
+  .export-options { display: flex; flex-direction: column; gap: 12px; }
+  .export-option-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .export-option-card:active { border-color: var(--primary); }
+  .export-option-icon { font-size: 32px; flex-shrink: 0; }
+  .export-option-info { flex: 1; }
+  .export-option-title { font-size: 16px; font-weight: 600; }
+  .export-option-desc { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+  .export-option-arrow { color: var(--text-secondary); font-size: 18px; }
+
+  /* 学城配置 */
+  .wiki-config { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .wiki-config-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .config-hint { font-size: 12px; color: var(--text-secondary); margin-top: 6px; line-height: 1.5; }
+  .config-hint a { color: var(--primary); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 14px;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 999;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Loading */
+  .loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 500; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+  .loading-overlay.show { display: flex; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 15px; color: var(--text-secondary); }
+
+  /* 进度条 */
+  .progress-bar-wrap { width: 200px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--primary); border-radius: 2px; transition: width 0.3s; }
+</style>
+</head>
+<body>
+
+<!-- ===== 首页 ===== -->
+<div class="page active" id="page-home">
+  <div class="topbar">
+    <h1>🏪 门店巡检</h1>
+    <button class="action-btn" onclick="showSettings()">设置</button>
+  </div>
+  <div class="home-content">
+    <button class="new-store-btn" onclick="showNewStoreModal()">
+      <span style="font-size:20px">📷</span> 开始新巡检
+    </button>
+    <div class="section-title">历史记录</div>
+    <div class="store-list" id="storeList"></div>
+  </div>
+</div>
+
+<!-- ===== 巡检页面 ===== -->
+<div class="page" id="page-inspect">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">‹</button>
+    <h1 id="inspectTitle">门店名称</h1>
+    <button class="action-btn" onclick="goExport()">完成 →</button>
+  </div>
+  <div class="inspect-content">
+    <div class="store-info-bar">
+      <div class="store-name" id="inspectStoreName"></div>
+      <div class="store-date" id="inspectStoreDate"></div>
+    </div>
+    <div class="photo-list" id="photoList">
+      <div class="empty-state" id="photoEmptyState">
+        <div class="emoji">📸</div>
+        <p>点击下方按钮拍照或选择照片</p>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-bar">
+    <button class="camera-btn" onclick="triggerCamera()">
+      <span style="font-size:20px">📷</span> 拍照
+    </button>
+    <button class="album-btn" onclick="triggerAlbum()">
+      🖼️ 相册
+    </button>
+  </div>
+  <input type="file" id="cameraInput" accept="image/*" capture="environment" multiple>
+  <input type="file" id="albumInput" accept="image/*" multiple>
+</div>
+
+<!-- ===== 导出/发布页面 ===== -->
+<div class="page" id="page-export">
+  <div class="topbar">
+    <button class="back-btn" onclick="showPage('page-inspect')">‹</button>
+    <h1>导出 / 发布</h1>
+  </div>
+  <div class="export-content">
+    <div class="export-preview">
+      <div class="preview-title" id="exportPreviewTitle"></div>
+      <div class="preview-meta" id="exportPreviewMeta"></div>
+      <div class="preview-thumb-row" id="exportPreviewThumbs"></div>
+    </div>
+
+    <!-- 学城配置 -->
+    <div class="wiki-config" id="wikiConfig">
+      <div class="wiki-config-title">🏫 学城 Wiki 配置</div>
+      <div class="form-group">
+        <label class="form-label">父页面 ID（parentId）</label>
+        <input class="form-input" id="wikiParentId" placeholder="例如：123456789" type="number">
+        <div class="config-hint">在学城页面 URL 中找到 contentId 参数，填入父页面的 ID</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">SSO Token（自动获取）</label>
+        <input class="form-input" id="wikiToken" placeholder="点击右侧按钮获取" readonly style="flex:1">
+        <button class="btn btn-confirm" style="margin-top:8px;padding:10px" onclick="fetchSSOToken()">获取 Token</button>
+      </div>
+    </div>
+
+    <div class="export-options">
+      <div class="export-option-card" onclick="exportWord()">
+        <div class="export-option-icon">📄</div>
+        <div class="export-option-info">
+          <div class="export-option-title">导出 Word 文档</div>
+          <div class="export-option-desc">生成包含照片和描述的 .docx 文件</div>
+        </div>
+        <div class="export-option-arrow">›</div>
+      </div>
+      <div class="export-option-card" onclick="publishToWiki()">
+        <div class="export-option-icon">🏫</div>
+        <div class="export-option-info">
+          <div class="export-option-title">发布到学城 Wiki</div>
+          <div class="export-option-desc">直接创建学城文档，含图片和描述</div>
+        </div>
+        <div class="export-option-arrow">›</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 设置页面 ===== -->
+<div class="page" id="page-settings">
+  <div class="topbar">
+    <button class="back-btn" onclick="showPage('page-home')">‹</button>
+    <h1>设置</h1>
+  </div>
+  <div class="export-content">
+    <div class="wiki-config">
+      <div class="wiki-config-title">🏫 学城默认配置</div>
+      <div class="form-group">
+        <label class="form-label">默认父页面 ID</label>
+        <input class="form-input" id="settingsParentId" placeholder="每次发布时的默认父页面">
+      </div>
+      <button class="btn btn-confirm" style="width:100%;margin-top:8px" onclick="saveSettings()">保存设置</button>
+    </div>
+    <div class="wiki-config" style="margin-top:12px">
+      <div class="wiki-config-title">🗑️ 数据管理</div>
+      <button class="btn" style="width:100%;background:#FFF0EB;color:var(--danger);border:1.5px solid var(--danger)" onclick="clearAllData()">清除所有记录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 新建门店弹窗 ===== -->
+<div class="modal-overlay" id="newStoreModal" onclick="closeNewStoreModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-title">新建巡检记录</div>
+    <div class="form-group">
+      <label class="form-label">门店名称 *</label>
+      <input class="form-input" id="newStoreName" placeholder="例如：朝阳大悦城店" autofocus>
+    </div>
+    <div class="form-group">
+      <label class="form-label">门店地址（选填）</label>
+      <input class="form-input" id="newStoreAddr" placeholder="例如：北京市朝阳区...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">巡检人（选填）</label>
+      <input class="form-input" id="newStoreInspector" placeholder="你的名字">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeNewStoreModal()">取消</button>
+      <button class="btn btn-confirm" onclick="createStore()">开始巡检</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">处理中...</div>
+  <div class="progress-bar-wrap" id="progressWrap" style="display:none">
+    <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
